@@ -175,3 +175,5 @@ bash
 Copy code
 mvn clean verify sonar:sonar -Dsonar.login=[your-sonar-token]
 Replace [your-sonar-token] with the token you generated on SonarCloud. For security reasons, it's recommended not to hard-code the token in your pom.xml or source code. Instead, provide it as a command line argument or set it in a CI environment.
+
+Commit C#2 with message “UC#1 Infrastructure setup”.
