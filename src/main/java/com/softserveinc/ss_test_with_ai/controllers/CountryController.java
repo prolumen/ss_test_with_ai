@@ -15,6 +15,7 @@ import java.util.stream.Collectors;
 
 @RestController
 public class CountryController {
+    private static final String API_URL = "https://restcountries.com/v3.1/all";
 
     @Autowired
     private RestTemplate restTemplate;
@@ -23,8 +24,8 @@ public class CountryController {
     public List<Country> getCountries(
             @RequestParam(required = false) String query,
             @RequestParam(required = false) Long maxPopulationInMillions,
-            @RequestParam(required = false) String order,
-            @RequestParam(required = false) Integer count
+            @RequestParam(defaultValue = "ascend") String order,
+            @RequestParam(required = false) Integer limit
     ) {
         List<Country> countries = fetchAllCountries();
 
@@ -36,19 +37,17 @@ public class CountryController {
             countries = filterByPopulation(countries, maxPopulationInMillions);
         }
 
-        if (order != null) {
-            countries = sortByName(countries, order);
-        }
+        countries = sortByName(countries, order);
 
-        if (count != null) {
-            countries = limitCountries(countries, count);
+        if (limit != null) {
+            countries = limitCountries(countries, limit);
         }
 
         return countries;
     }
 
     private List<Country> fetchAllCountries() {
-        ResponseEntity<Country[]> response = restTemplate.getForEntity("https://restcountries.com/v3.1/all", Country[].class);
+        ResponseEntity<Country[]> response = restTemplate.getForEntity(API_URL, Country[].class);
         return Arrays.asList(response.getBody());
     }
 
@@ -76,9 +75,9 @@ public class CountryController {
                 .collect(Collectors.toList());
     }
 
-    private List<Country> limitCountries(List<Country> countries, int count) {
+    private List<Country> limitCountries(List<Country> countries, int limit) {
         return countries.stream()
-                .limit(count)
+                .limit(limit)
                 .collect(Collectors.toList());
     }
 }
