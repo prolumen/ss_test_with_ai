@@ -1,49 +1,77 @@
 package com.softserveinc.ss_test_with_ai.controllers;
 
-import org.junit.jupiter.api.BeforeEach;
+import com.softserveinc.ss_test_with_ai.domains.Country;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import java.util.List;
 
-@SpringBootTest
-@AutoConfigureMockMvc
+import static org.junit.jupiter.api.Assertions.*;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class CountryControllerIntegrationTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+    @LocalServerPort
+    private int port;
 
     @Autowired
-    private WebApplicationContext webApplicationContext;
+    private TestRestTemplate restTemplate;
 
-    @BeforeEach
-    void setUp() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext).build();
+    @Test
+    public void getCountries_SearchFilter() {
+        ResponseEntity<List<Country>> response = restTemplate.exchange(
+                "http://localhost:" + port + "/countries?query=UK",
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<List<Country>>() {}
+        );
+
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        assertTrue(countries.stream().anyMatch(country -> country.getName().getCommon().contains("Uk")));
     }
 
     @Test
-    public void testGetCountries() throws Exception {
-        mockMvc.perform(get("/countries")
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name.common").isNotEmpty());
+    public void getCountries_PopulationFilter() {
+        ResponseEntity<List<Country>> response = restTemplate.exchange(
+                "http://localhost:" + port + "/countries?maxPopulationInMillions=100",
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<List<Country>>() {}
+        );
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        assertTrue(countries.stream().allMatch(country -> country.getPopulation() < 100 * 1000000));
     }
 
     @Test
-    public void testSearchCountries() throws Exception {
-        mockMvc.perform(get("/countries")
-                        .param("query", "st")
-                        .contentType(MediaType.APPLICATION_JSON))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name.common").isNotEmpty());
+    public void getCountries_Sorting() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/countries?order=descend",
+                List.class
+        );
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+    }
+
+    @Test
+    public void getCountries_Pagination() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/countries?limit=2",
+                List.class
+        );
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        assertEquals(2, countries.size());
     }
 }
-

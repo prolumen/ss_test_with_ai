@@ -1,0 +1,831 @@
+Create Unit tests for all 4 functions (filter, filter, sort, pagination) created earlier
+
+package com.softserveinc.ss_test_with_ai.controllers;
+
+import com.softserveinc.ss_test_with_ai.domains.Country;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+public class CountryController {
+    private static final String API_URL = "https://restcountries.com/v3.1/all";
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @GetMapping("/countries")
+    public List<Country> getCountries(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Long maxPopulationInMillions,
+            @RequestParam(defaultValue = "ascend") String order,
+            @RequestParam(required = false) Integer limit
+    ) {
+        List<Country> countries = fetchAllCountries();
+
+        if (query != null) {
+            countries = searchCountries(countries, query);
+        }
+
+        if (maxPopulationInMillions != null) {
+            countries = filterByPopulation(countries, maxPopulationInMillions);
+        }
+
+        countries = sortByName(countries, order);
+
+        if (limit != null) {
+            countries = limitCountries(countries, limit);
+        }
+
+        return countries;
+    }
+
+    private List<Country> fetchAllCountries() {
+        ResponseEntity<Country[]> response = restTemplate.getForEntity(API_URL, Country[].class);
+        return Arrays.asList(response.getBody());
+    }
+
+    private List<Country> searchCountries(List<Country> countries, String query) {
+        return countries.stream()
+                .filter(country -> country.getName().getCommon().toLowerCase().contains(query.toLowerCase()))
+                .collect(Collectors.toList());
+    }
+
+    private List<Country> filterByPopulation(List<Country> countries, long maxPopulationInMillions) {
+        return countries.stream()
+                .filter(country -> country.getPopulation() < maxPopulationInMillions * 1000000)
+                .collect(Collectors.toList());
+    }
+
+    private List<Country> sortByName(List<Country> countries, String order) {
+        Comparator<Country> comparator = Comparator.comparing(country -> country.getName().getCommon().toLowerCase());
+
+        if ("descend".equals(order)) {
+            comparator = comparator.reversed();
+        }
+
+        return countries.stream()
+                .sorted(comparator)
+                .collect(Collectors.toList());
+    }
+
+    private List<Country> limitCountries(List<Country> countries, int limit) {
+        return countries.stream()
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+}
+
+ChatGPT
+To unit test the methods in your CountryController, we need to make use of the Mockito framework and JUnit. Here are the steps and sample unit tests for the methods:
+
+Set Up:
+
+Mock the required dependencies (like RestTemplate)
+Instantiate the controller and inject mocked dependencies
+Write Test Cases:
+
+For each function in the controller, you should consider different cases/scenarios to test
+Let's create test cases for your methods:
+
+java
+Copy code
+package com.softserveinc.ss_test_with_ai.controllers;
+
+import com.softserveinc.ss_test_with_ai.domains.Country;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Arrays;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.when;
+
+public class CountryControllerTest {
+
+    @Mock
+    private RestTemplate restTemplate;
+
+    private CountryController countryController;
+
+    @BeforeEach
+    public void setUp() {
+        MockitoAnnotations.initMocks(this);
+        countryController = new CountryController();
+        countryController.restTemplate = restTemplate;
+    }
+
+    @Test
+    public void testSearchCountries() {
+        List<Country> countries = Arrays.asList(
+                new Country("Ukraine", 44L),
+                new Country("UK", 65L),
+                new Country("US", 330L)
+        );
+        List<Country> result = countryController.searchCountries(countries, "UK");
+
+        assertEquals(2, result.size());
+        assertTrue(result.stream().anyMatch(country -> "UK".equals(country.getName().getCommon())));
+    }
+
+    @Test
+    public void testFilterByPopulation() {
+        List<Country> countries = Arrays.asList(
+                new Country("Ukraine", 44L),
+                new Country("UK", 65L),
+                new Country("US", 330L)
+        );
+        List<Country> result = countryController.filterByPopulation(countries, 100);
+
+        assertEquals(2, result.size());
+        assertTrue(result.stream().allMatch(country -> country.getPopulation() < 100 * 1000000));
+    }
+
+    @Test
+    public void testSortByName() {
+        List<Country> countries = Arrays.asList(
+                new Country("Ukraine", 44L),
+                new Country("UK", 65L),
+                new Country("US", 330L)
+        );
+        List<Country> result = countryController.sortByName(countries, "descend");
+
+        assertEquals("Ukraine", result.get(2).getName().getCommon());
+        assertEquals("UK", result.get(1).getName().getCommon());
+        assertEquals("US", result.get(0).getName().getCommon());
+    }
+
+    @Test
+    public void testLimitCountries() {
+        List<Country> countries = Arrays.asList(
+                new Country("Ukraine", 44L),
+                new Country("UK", 65L),
+                new Country("US", 330L)
+        );
+        List<Country> result = countryController.limitCountries(countries, 2);
+
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    public void testGetCountries() {
+        Country[] countryArray = {
+                new Country("Ukraine", 44L),
+                new Country("UK", 65L),
+                new Country("US", 330L)
+        };
+        when(restTemplate.getForEntity(CountryController.API_URL, Country[].class))
+                .thenReturn(ResponseEntity.ok(countryArray));
+
+        List<Country> result = countryController.getCountries("UK", 100L, "ascend", 2);
+
+        assertEquals(1, result.size());
+        assertEquals("UK", result.get(0).getName().getCommon());
+    }
+}
+Note: The Country constructor and method getName().getCommon() are based on assumptions as they weren't provided in the initial code. Adjust them according to the actual implementations.
+
+Also, remember to add necessary imports for the testing frameworks, and consider enhancing these tests further by adding more edge cases or scenarios that might be unique to your application's needs.
+
+
+
+
+User
+Create integration tests for all 4 functions (filter, filter, sort, pagination) created earlier
+
+package com.softserveinc.ss_test_with_ai.controllers;
+
+import com.softserveinc.ss_test_with_ai.domains.Country;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+public class CountryController {
+    private static final String API_URL = "https://restcountries.com/v3.1/all";
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @GetMapping("/countries")
+    public List<Country> getCountries(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Long maxPopulationInMillions,
+            @RequestParam(defaultValue = "ascend") String order,
+            @RequestParam(required = false) Integer limit
+    ) {
+        List<Country> countries = fetchAllCountries();
+
+        if (query != null) {
+            countries = searchCountries(countries, query);
+        }
+
+        if (maxPopulationInMillions != null) {
+            countries = filterByPopulation(countries, maxPopulationInMillions);
+        }
+
+        countries = sortByName(countries, order);
+
+        if (limit != null) {
+            countries = limitCountries(countries, limit);
+        }
+
+        return countries;
+    }
+
+    private List<Country> fetchAllCountries() {
+        ResponseEntity<Country[]> response = restTemplate.getForEntity(API_URL, Country[].class);
+        return Arrays.asList(response.getBody());
+    }
+
+    private List<Country> searchCountries(List<Country> countries, String query) {
+        return countries.stream()
+                .filter(country -> country.getName().getCommon().toLowerCase().contains(query.toLowerCase()))
+                .collect(Collectors.toList());
+    }
+
+    private List<Country> filterByPopulation(List<Country> countries, long maxPopulationInMillions) {
+        return countries.stream()
+                .filter(country -> country.getPopulation() < maxPopulationInMillions * 1000000)
+                .collect(Collectors.toList());
+    }
+
+    private List<Country> sortByName(List<Country> countries, String order) {
+        Comparator<Country> comparator = Comparator.comparing(country -> country.getName().getCommon().toLowerCase());
+
+        if ("descend".equals(order)) {
+            comparator = comparator.reversed();
+        }
+
+        return countries.stream()
+                .sorted(comparator)
+                .collect(Collectors.toList());
+    }
+
+    private List<Country> limitCountries(List<Country> countries, int limit) {
+        return countries.stream()
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+}
+ChatGPT
+For integration testing, we'll use Spring's TestRestTemplate for invoking controller methods and @SpringBootTest for bootstrapping the entire application context.
+
+Steps:
+
+Set Up:
+
+Use @SpringBootTest to load an embedded web server and entire application context.
+Use TestRestTemplate to perform HTTP requests.
+Run tests with @WebMvcTest for slicing tests to just MVC components.
+Write Test Cases:
+
+Test endpoint with different parameters to ensure integration between components.
+Here's how you can set up and write integration tests:
+
+java
+Copy code
+package com.softserveinc.ss_test_with_ai.controllers;
+
+import com.softserveinc.ss_test_with_ai.domains.Country;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.web.server.LocalServerPort;
+import org.springframework.http.ResponseEntity;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+public class CountryControllerIntegrationTest {
+
+    @LocalServerPort
+    private int port;
+
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @Test
+    public void getCountries_SearchFilter() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/countries?query=UK",
+                List.class
+        );
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        assertTrue(countries.stream().anyMatch(country -> country.getName().getCommon().contains("UK")));
+    }
+
+    @Test
+    public void getCountries_PopulationFilter() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/countries?maxPopulationInMillions=100",
+                List.class
+        );
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        assertTrue(countries.stream().allMatch(country -> country.getPopulation() < 100 * 1000000));
+    }
+
+    @Test
+    public void getCountries_Sorting() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/countries?order=descend",
+                List.class
+        );
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        // You can add more specific sorting checks here
+    }
+
+    @Test
+    public void getCountries_Pagination() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/countries?limit=2",
+                List.class
+        );
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        assertEquals(2, countries.size());
+    }
+}
+Note:
+
+I assumed Country is a typical domain object with typical fields and methods. You might need to adjust it according to your actual implementation.
+Integration tests typically interact with real systems or simulated versions. If you don't want to make real API calls, consider mocking your external API calls, or use tools like WireMock for simulating API behavior.
+Always ensure that you have the required test configurations set up (like application-test.properties) and any required beans or configurations in your context when using @SpringBootTest.
+Running integration tests can be more time-consuming than unit tests, especially when booting up the entire Spring context. Use them judiciously.
+
+
+
+User
+fix this test
+java.lang.ClassCastException: class java.util.LinkedHashMap cannot be cast to class com.softserveinc.ss_test_with_ai.domains.Country (java.util.LinkedHashMap is in module java.base of loader 'bootstrap'; com.softserveinc.ss_test_with_ai.domains.Country is in unnamed module of loader 'app')
+
+	at java.base/java.util.stream.MatchOps$1MatchSink.accept(MatchOps.java:90)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.tryAdvance(ArrayList.java:1602)
+	at java.base/java.util.stream.ReferencePipeline.forEachWithCancel(ReferencePipeline.java:129)
+	at java.base/java.util.stream.AbstractPipeline.copyIntoWithCancel(AbstractPipeline.java:527)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:513)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)
+	at java.base/java.util.stream.MatchOps$MatchOp.evaluateSequential(MatchOps.java:230)
+	at java.base/java.util.stream.MatchOps$MatchOp.evaluateSequential(MatchOps.java:196)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+	at java.base/java.util.stream.ReferencePipeline.anyMatch(ReferencePipeline.java:632)
+	at com.softserveinc.ss_test_with_ai.controllers.CountryControllerIntegrationTest.getCountries_SearchFilter(CountryControllerIntegrationTest.java:33)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:578)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:727)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:149)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:140)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:84)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(ExecutableInvoker.java:115)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker.lambda$invoke$0(ExecutableInvoker.java:105)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker.invoke(ExecutableInvoker.java:104)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker.invoke(ExecutableInvoker.java:98)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$6(TestMethodTestDescriptor.java:210)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:206)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:131)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:65)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:151)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:147)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:127)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:90)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:55)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:102)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:54)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:114)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:86)
+	at org.junit.platform.launcher.core.DefaultLauncherSession$DelegatingLauncher.execute(DefaultLauncherSession.java:86)
+	at org.junit.platform.launcher.core.SessionPerRequestLauncher.execute(SessionPerRequestLauncher.java:53)
+	at com.intellij.junit5.JUnit5IdeaTestRunner.startRunnerWithArgs(JUnit5IdeaTestRunner.java:71)
+	at com.intellij.rt.junit.IdeaTestRunner$Repeater.startRunnerWithArgs(IdeaTestRunner.java:33)
+	at com.intellij.rt.junit.JUnitStarter.prepareStreamsAndStart(JUnitStarter.java:235)
+	at com.intellij.rt.junit.JUnitStarter.main(JUnitStarter.java:54)
+ChatGPT
+The ClassCastException that you're seeing is due to the deserialization of the response body. The TestRestTemplate by default deserializes JSON into a LinkedHashMap when the specific type is not provided. This is happening when you're trying to fetch the list of Country objects from the response.
+
+To fix this, you'll need to specify the type you're expecting in the response body.
+
+You can use a ParameterizedTypeReference to describe the generic type (List<Country> in your case) when exchanging the response:
+
+Here's the adjusted code for your integration test:
+
+java
+Copy code
+package com.softserveinc.ss_test_with_ai.controllers;
+
+import com.softserveinc.ss_test_with_ai.domains.Country;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+public class CountryControllerIntegrationTest {
+
+    @LocalServerPort
+    private int port;
+
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @Test
+    public void getCountries_SearchFilter() {
+        ResponseEntity<List<Country>> response = restTemplate.exchange(
+                "http://localhost:" + port + "/countries?query=UK",
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<List<Country>>() {}
+        );
+
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        assertTrue(countries.stream().anyMatch(country -> country.getName().getCommon().contains("UK")));
+    }
+
+    // ... rest of your tests go here ...
+}
+The important change is the replacement of getForEntity with exchange method, which allows you to provide a ParameterizedTypeReference as an argument to specify the expected return type, allowing you to receive a List<Country> instead of a List<LinkedHashMap>.
+
+
+
+
+User
+fix this test
+org.opentest4j.AssertionFailedError:
+Expected :true
+Actual   :false
+<Click to see difference>
+
+
+	at org.junit.jupiter.api.AssertionFailureBuilder.build(AssertionFailureBuilder.java:151)
+	at org.junit.jupiter.api.AssertionFailureBuilder.buildAndThrow(AssertionFailureBuilder.java:132)
+	at org.junit.jupiter.api.AssertTrue.failNotTrue(AssertTrue.java:63)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:36)
+	at org.junit.jupiter.api.AssertTrue.assertTrue(AssertTrue.java:31)
+	at org.junit.jupiter.api.Assertions.assertTrue(Assertions.java:180)
+	at com.softserveinc.ss_test_with_ai.controllers.CountryControllerIntegrationTest.getCountries_SearchFilter(CountryControllerIntegrationTest.java:38)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:578)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:727)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:149)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:140)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:84)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(ExecutableInvoker.java:115)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker.lambda$invoke$0(ExecutableInvoker.java:105)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker.invoke(ExecutableInvoker.java:104)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker.invoke(ExecutableInvoker.java:98)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$6(TestMethodTestDescriptor.java:210)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:206)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:131)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:65)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:151)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:147)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:127)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:90)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:55)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:102)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:54)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:114)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:86)
+	at org.junit.platform.launcher.core.DefaultLauncherSession$DelegatingLauncher.execute(DefaultLauncherSession.java:86)
+	at org.junit.platform.launcher.core.SessionPerRequestLauncher.execute(SessionPerRequestLauncher.java:53)
+	at com.intellij.junit5.JUnit5IdeaTestRunner.startRunnerWithArgs(JUnit5IdeaTestRunner.java:71)
+	at com.intellij.rt.junit.IdeaTestRunner$Repeater.startRunnerWithArgs(IdeaTestRunner.java:33)
+	at com.intellij.rt.junit.JUnitStarter.prepareStreamsAndStart(JUnitStarter.java:235)
+	at com.intellij.rt.junit.JUnitStarter.main(JUnitStarter.java:54)
+ChatGPT
+The error message you provided indicates that an assertion in your JUnit 5 test failed. The test was expecting a value of true but received false.
+
+The failing test is getCountries_SearchFilter which is part of the CountryControllerIntegrationTest class.
+
+To fix this test, you would need to do the following:
+
+Identify the Failing Assertion: Navigate to the getCountries_SearchFilter method in the CountryControllerIntegrationTest class, and find the failing assertion. This might look something like assertTrue(someCondition);.
+
+Understand the Test's Purpose: Understand what the test is supposed to verify. Is it checking if a specific filter returns the correct countries? Or is it verifying that the search functionality itself works?
+
+Check the Test's Logic: Ensure that the logic in your test is correct. For example, if you're trying to retrieve countries with a specific filter, ensure that the filter criteria are correctly set.
+
+Inspect the Actual Logic Being Tested: Go to the method or functionality that this test is verifying and check its logic. There might be a problem there which is causing the test to fail. If the test is supposed to check search functionality, then it's essential to ensure that the search method in your actual code (not the test code) is working correctly.
+
+Additional Logging: If the problem is not evident, add logging to your test and the method it's testing. This way, you can capture more detailed information which might provide insights into why the test is failing.
+
+Test Data: Ensure that any data the test relies on (like database entries for countries) is correctly set up for the test.
+
+Environment Issues: Sometimes tests fail because of environmental issues (e.g., a database not being reachable). Make sure that everything external to the test (like databases, APIs, etc.) is running and accessible.
+
+Fix the Issue: Once you've identified the problem, make the necessary changes either in the test or in the method it's testing.
+
+Run the Test Again: After making changes, run the test again to verify that the problem is resolved.
+
+Review Other Tests: Sometimes, fixing one test can lead to other tests failing if they are interdependent. Always make sure to run your entire test suite after making changes.
+
+Lastly, if you're still having trouble identifying or fixing the issue, consider reaching out for help. Sometimes a fresh pair of eyes can spot issues that you might have overlooked.
+
+
+
+
+User
+fix this test
+java.lang.ClassCastException: class java.util.LinkedHashMap cannot be cast to class com.softserveinc.ss_test_with_ai.domains.Country (java.util.LinkedHashMap is in module java.base of loader 'bootstrap'; com.softserveinc.ss_test_with_ai.domains.Country is in unnamed module of loader 'app')
+
+	at java.base/java.util.stream.MatchOps$1MatchSink.accept(MatchOps.java:90)
+	at java.base/java.util.ArrayList$ArrayListSpliterator.tryAdvance(ArrayList.java:1602)
+	at java.base/java.util.stream.ReferencePipeline.forEachWithCancel(ReferencePipeline.java:129)
+	at java.base/java.util.stream.AbstractPipeline.copyIntoWithCancel(AbstractPipeline.java:527)
+	at java.base/java.util.stream.AbstractPipeline.copyInto(AbstractPipeline.java:513)
+	at java.base/java.util.stream.AbstractPipeline.wrapAndCopyInto(AbstractPipeline.java:499)
+	at java.base/java.util.stream.MatchOps$MatchOp.evaluateSequential(MatchOps.java:230)
+	at java.base/java.util.stream.MatchOps$MatchOp.evaluateSequential(MatchOps.java:196)
+	at java.base/java.util.stream.AbstractPipeline.evaluate(AbstractPipeline.java:234)
+	at java.base/java.util.stream.ReferencePipeline.allMatch(ReferencePipeline.java:637)
+	at com.softserveinc.ss_test_with_ai.controllers.CountryControllerIntegrationTest.getCountries_PopulationFilter(CountryControllerIntegrationTest.java:50)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:104)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:578)
+	at org.junit.platform.commons.util.ReflectionUtils.invokeMethod(ReflectionUtils.java:727)
+	at org.junit.jupiter.engine.execution.MethodInvocation.proceed(MethodInvocation.java:60)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$ValidatingInvocation.proceed(InvocationInterceptorChain.java:131)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.intercept(TimeoutExtension.java:149)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestableMethod(TimeoutExtension.java:140)
+	at org.junit.jupiter.engine.extension.TimeoutExtension.interceptTestMethod(TimeoutExtension.java:84)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker$ReflectiveInterceptorCall.lambda$ofVoidMethod$0(ExecutableInvoker.java:115)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker.lambda$invoke$0(ExecutableInvoker.java:105)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain$InterceptedInvocation.proceed(InvocationInterceptorChain.java:106)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.proceed(InvocationInterceptorChain.java:64)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.chainAndInvoke(InvocationInterceptorChain.java:45)
+	at org.junit.jupiter.engine.execution.InvocationInterceptorChain.invoke(InvocationInterceptorChain.java:37)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker.invoke(ExecutableInvoker.java:104)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker.invoke(ExecutableInvoker.java:98)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.lambda$invokeTestMethod$6(TestMethodTestDescriptor.java:210)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.invokeTestMethod(TestMethodTestDescriptor.java:206)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:131)
+	at org.junit.jupiter.engine.descriptor.TestMethodTestDescriptor.execute(TestMethodTestDescriptor.java:65)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:151)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at java.base/java.util.ArrayList.forEach(ArrayList.java:1511)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.invokeAll(SameThreadHierarchicalTestExecutorService.java:41)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$6(NodeTestTask.java:155)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$8(NodeTestTask.java:141)
+	at org.junit.platform.engine.support.hierarchical.Node.around(Node.java:137)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.lambda$executeRecursively$9(NodeTestTask.java:139)
+	at org.junit.platform.engine.support.hierarchical.ThrowableCollector.execute(ThrowableCollector.java:73)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.executeRecursively(NodeTestTask.java:138)
+	at org.junit.platform.engine.support.hierarchical.NodeTestTask.execute(NodeTestTask.java:95)
+	at org.junit.platform.engine.support.hierarchical.SameThreadHierarchicalTestExecutorService.submit(SameThreadHierarchicalTestExecutorService.java:35)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestExecutor.execute(HierarchicalTestExecutor.java:57)
+	at org.junit.platform.engine.support.hierarchical.HierarchicalTestEngine.execute(HierarchicalTestEngine.java:54)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:147)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:127)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:90)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.lambda$execute$0(EngineExecutionOrchestrator.java:55)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.withInterceptedStreams(EngineExecutionOrchestrator.java:102)
+	at org.junit.platform.launcher.core.EngineExecutionOrchestrator.execute(EngineExecutionOrchestrator.java:54)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:114)
+	at org.junit.platform.launcher.core.DefaultLauncher.execute(DefaultLauncher.java:86)
+	at org.junit.platform.launcher.core.DefaultLauncherSession$DelegatingLauncher.execute(DefaultLauncherSession.java:86)
+	at org.junit.platform.launcher.core.SessionPerRequestLauncher.execute(SessionPerRequestLauncher.java:53)
+	at com.intellij.junit5.JUnit5IdeaTestRunner.startRunnerWithArgs(JUnit5IdeaTestRunner.java:71)
+	at com.intellij.rt.junit.IdeaTestRunner$Repeater.startRunnerWithArgs(IdeaTestRunner.java:33)
+	at com.intellij.rt.junit.JUnitStarter.prepareStreamsAndStart(JUnitStarter.java:235)
+	at com.intellij.rt.junit.JUnitStarter.main(JUnitStarter.java:54)
+ChatGPT
+The exception java.lang.ClassCastException is raised when an attempt is made to cast an object to a type to which it cannot be cast. In this particular case, you're trying to cast an instance of java.util.LinkedHashMap to com.softserveinc.ss_test_with_ai.domains.Country.
+
+From the exception stack trace, it seems like the error originates from the test method getCountries_PopulationFilter in the CountryControllerIntegrationTest class. Given the name of the method and the error, it's likely that a response (possibly from a mocked or real HTTP call) is being processed as a list or stream of maps, when the expectation was that it would be processed as a list or stream of Country objects.
+
+Here's what you can do to troubleshoot and fix the issue:
+
+Inspect the Source Data: Ensure the data being processed within the getCountries_PopulationFilter method is in the expected format. If you're retrieving it from an external source or service, it might be returning the data in a map format instead of the desired object format.
+
+Review Deserialization Logic: If you're using a framework like Jackson or Gson to deserialize JSON data into Java objects, ensure that the mapping is correctly set up. You might need to explicitly specify the target class or provide additional annotations to ensure correct deserialization.
+
+Manual Conversion: If you indeed get a LinkedHashMap and need to convert it to a Country, you can manually convert it:
+
+java
+Copy code
+Country mapToCountry(Map<String, Object> map) {
+    Country country = new Country();
+    country.setField1(map.get("field1").toString());
+    country.setField2((FieldType) map.get("field2"));
+    // ... set other fields
+    return country;
+}
+Stream Operations: If you're processing a stream of maps, you can use the map function to convert each map to a Country:
+java
+Copy code
+List<Country> countries = maps.stream()
+                              .map(this::mapToCountry)
+                              .collect(Collectors.toList());
+Update Test Mocks/Stubs: If you're mocking responses in your test, ensure the mocked response aligns with the real-world format. If you're expecting a List<Country>, but your mock returns a List<LinkedHashMap>, it can cause this error.
+Lastly, it's always helpful to isolate the exact line or operation in getCountries_PopulationFilter that's causing the issue. Using a debugger or adding logging statements can help pinpoint where the unexpected type is being encountered. Once you've identified that, you can focus on ensuring the data transformation or deserialization logic is correct for that specific point in the code.
+
+
+
+
+User
+add more case for this test
+
+    @Test
+    public void getCountries_Sorting() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/countries?order=descend",
+                List.class
+        );
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        // You can add more specific sorting checks here
+    }
+ChatGPT
+To add more test cases to the getCountries_Sorting test method, you might want to consider the following aspects:
+
+Sorting Verification: After retrieving the list of countries, you can check if they are indeed sorted in descending order (since you're using order=descend in the request).
+
+Other Sorting Orders: You can add test cases for ascending order or any other order you have in your application.
+
+Null or Empty Response: Test how your code handles cases where the response is empty or null.
+
+Here's an example of how you can expand the given test method:
+
+java
+Copy code
+@Test
+public void getCountries_Sorting() {
+    ResponseEntity<List> response = restTemplate.getForEntity(
+            "http://localhost:" + port + "/countries?order=descend",
+            List.class
+    );
+    List<Country> countries = response.getBody();
+
+    assertNotNull(countries);
+
+    // Test for a non-empty list
+    assertFalse(countries.isEmpty());
+
+    // Check if countries are sorted in descending order
+    for (int i = 0; i < countries.size() - 1; i++) {
+        assertTrue(countries.get(i).getName().compareTo(countries.get(i + 1).getName()) >= 0);
+    }
+
+    // Test with ascending order
+    response = restTemplate.getForEntity(
+            "http://localhost:" + port + "/countries?order=ascend",
+            List.class
+    );
+    countries = response.getBody();
+
+    assertNotNull(countries);
+    assertFalse(countries.isEmpty());
+
+    // Check if countries are sorted in ascending order
+    for (int i = 0; i < countries.size() - 1; i++) {
+        assertTrue(countries.get(i).getName().compareTo(countries.get(i + 1).getName()) <= 0);
+    }
+}
+
+// Test for a null response
+@Test
+public void getCountries_NullResponse() {
+    ResponseEntity<List> response = restTemplate.getForEntity(
+            "http://localhost:" + port + "/countries?order=unknownOrder",
+            List.class
+    );
+    List<Country> countries = response.getBody();
+
+    assertNull(countries);
+}
+
+// Test for an empty response
+@Test
+public void getCountries_EmptyResponse() {
+    ResponseEntity<List> response = restTemplate.getFor

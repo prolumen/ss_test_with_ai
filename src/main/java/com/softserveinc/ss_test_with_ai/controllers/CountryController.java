@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 
 @RestController
 public class CountryController {
-    private static final String API_URL = "https://restcountries.com/v3.1/all";
 
     @Autowired
     private RestTemplate restTemplate;
@@ -47,7 +46,7 @@ public class CountryController {
     }
 
     private List<Country> fetchAllCountries() {
-        ResponseEntity<Country[]> response = restTemplate.getForEntity(API_URL, Country[].class);
+        ResponseEntity<Country[]> response = restTemplate.getForEntity("https://restcountries.com/v3.1/all", Country[].class);
         return Arrays.asList(response.getBody());
     }
 

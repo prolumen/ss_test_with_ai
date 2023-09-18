@@ -2,7 +2,16 @@ package com.softserveinc.ss_test_with_ai.domains;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Comparator;
+
 public class Country {
+
+    public Country() {
+    }
+    public Country(String name, long population) {
+        setName(new Names(name));
+        this.population = population;
+    }
 
     private Names name;
 
@@ -27,6 +36,13 @@ public class Country {
 
     public static class Names {
         private String common;
+
+        public Names() {
+        }
+
+        public Names(String common) {
+            setCommon(common);
+        }
 
         @JsonProperty("common")
         public String getCommon() {
