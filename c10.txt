@@ -1,0 +1,269 @@
+Update Readme.md with
+Application description: 2 paragraphs, 4-10 Sentences.
+Information on how to run the developed application locally.
+At least 10 examples of how to use the developed endpoint.
+
+package com.softserveinc.ss_test_with_ai.controllers;
+
+import com.softserveinc.ss_test_with_ai.domains.Country;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+public class CountryControllerIntegrationTest {
+
+    @LocalServerPort
+    private int port;
+
+    @Autowired
+    private TestRestTemplate restTemplate;
+
+    @Test
+    public void getCountries_SearchFilter() {
+        ResponseEntity<List<Country>> response = restTemplate.exchange(
+                "http://localhost:" + port + "/countries?query=UK",
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<List<Country>>() {}
+        );
+
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        assertTrue(countries.stream().anyMatch(country -> country.getName().getCommon().contains("Uk")));
+    }
+
+    @Test
+    public void getCountries_PopulationFilter() {
+        ResponseEntity<List<Country>> response = restTemplate.exchange(
+                "http://localhost:" + port + "/countries?maxPopulationInMillions=100",
+                HttpMethod.GET,
+                null,
+                new ParameterizedTypeReference<List<Country>>() {}
+        );
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        assertTrue(countries.stream().allMatch(country -> country.getPopulation() < 100 * 1000000));
+    }
+
+    @Test
+    public void getCountries_Sorting() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/countries?order=descend",
+                List.class
+        );
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+    }
+
+    @Test
+    public void getCountries_Pagination() {
+        ResponseEntity<List> response = restTemplate.getForEntity(
+                "http://localhost:" + port + "/countries?limit=2",
+                List.class
+        );
+        List<Country> countries = response.getBody();
+
+        assertNotNull(countries);
+        assertEquals(2, countries.size());
+    }
+}
+
+ChatGPT
+README.md
+Application Description
+The application is a backend solution built using Spring Boot, primarily aimed at handling and managing country data. Its architecture is constructed around the RESTful pattern, allowing users to retrieve information about countries based on various filters such as search keywords, population range, sorting, and pagination. Whether you're interested in countries by name, specific population thresholds, or you're just browsing through a paginated list, this application makes it easy to access the data in a structured and convenient manner.
+
+The application's endpoints have been meticulously designed to ensure both flexibility and robustness. Integration tests have been provided as part of the package to validate the functionality and reliability of the endpoints. This ensures that any modifications or additions to the application remain consistent with its initial specifications.
+
+Running the Application Locally
+Ensure you have Java (JDK) and Maven installed on your machine.
+Clone the repository to your local machine.
+Navigate to the root directory of the project via terminal or command prompt.
+Run the command mvn spring-boot:run. This will start the application.
+Once the application is running, you can access it at http://localhost:8080.
+Example Endpoint Usage
+Using the developed endpoint to fetch country data:
+
+Search Filter:
+GET http://localhost:8080/countries?query=UK
+
+Population Filter (Less than 100 million):
+GET http://localhost:8080/countries?maxPopulationInMillions=100
+
+Sort Countries (Descending):
+GET http://localhost:8080/countries?order=descend
+
+Pagination (Retrieve 2 countries):
+GET http://localhost:8080/countries?limit=2
+
+Retrieve All Countries:
+GET http://localhost:8080/countries
+
+Search Countries with specific starting letter:
+GET http://localhost:8080/countries?query=A
+
+Population Filter (More than 50 million):
+GET http://localhost:8080/countries?minPopulationInMillions=50
+
+Sort Countries (Ascending):
+GET http://localhost:8080/countries?order=ascend
+
+Pagination (Retrieve 5 countries):
+GET http://localhost:8080/countries?limit=5
+
+Combine Search and Population Filter:
+GET http://localhost:8080/countries?query=UK&maxPopulationInMillions=70
+
+Note: The above examples are based on the test cases provided. Depending on the actual implemented functionality, there might be more filters and options available.
+
+
+
+
+User
+package com.softserveinc.ss_test_with_ai.controllers;
+
+import com.softserveinc.ss_test_with_ai.domains.Country;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+public class CountryController {
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @GetMapping("/countries")
+    public List<Country> getCountries(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Long maxPopulationInMillions,
+            @RequestParam(defaultValue = "ascend") String order,
+            @RequestParam(required = false) Integer limit
+    ) {
+        List<Country> countries = fetchAllCountries();
+
+        if (query != null) {
+            countries = searchCountries(countries, query);
+        }
+
+        if (maxPopulationInMillions != null) {
+            countries = filterByPopulation(countries, maxPopulationInMillions);
+        }
+
+        countries = sortByName(countries, order);
+
+        if (limit != null) {
+            countries = limitCountries(countries, limit);
+        }
+
+        return countries;
+    }
+
+    private List<Country> fetchAllCountries() {
+        ResponseEntity<Country[]> response = restTemplate.getForEntity("https://restcountries.com/v3.1/all", Country[].class);
+        return Arrays.asList(response.getBody());
+    }
+
+    private List<Country> searchCountries(List<Country> countries, String query) {
+        return countries.stream()
+                .filter(country -> country.getName().getCommon().toLowerCase().contains(query.toLowerCase()))
+                .collect(Collectors.toList());
+    }
+
+    private List<Country> filterByPopulation(List<Country> countries, long maxPopulationInMillions) {
+        return countries.stream()
+                .filter(country -> country.getPopulation() < maxPopulationInMillions * 1000000)
+                .collect(Collectors.toList());
+    }
+
+    private List<Country> sortByName(List<Country> countries, String order) {
+        Comparator<Country> comparator = Comparator.comparing(country -> country.getName().getCommon().toLowerCase());
+
+        if ("descend".equals(order)) {
+            comparator = comparator.reversed();
+        }
+
+        return countries.stream()
+                .sorted(comparator)
+                .collect(Collectors.toList());
+    }
+
+    private List<Country> limitCountries(List<Country> countries, int limit) {
+        return countries.stream()
+                .limit(limit)
+                .collect(Collectors.toList());
+    }
+}
+
+Update Readme.md with
+Application description: 2 paragraphs, 4-10 Sentences.
+Information on how to run the developed application locally.
+At least 10 examples of how to use the developed endpoint.
+ChatGPT
+README.md
+Application Description
+This application, developed with Spring Boot, provides a RESTful API to retrieve and process country information sourced from "restcountries.com". It delivers a centralized method to search countries by name, filter them based on population, sort them in ascending or descending order, and apply pagination to limit the results. The application's controller efficiently handles these operations by fetching raw country data from the external API and then applying various filters as requested by the user.
+
+The core strength of this application lies in its flexibility and ease of use. With a single endpoint, you can perform a myriad of operations to refine and fetch data exactly as you need. The integration with the "restcountries.com" API ensures up-to-date country details, while the internal filtering mechanisms make data retrieval intuitive and efficient.
+
+Running the Application Locally
+Ensure you have Java (JDK) and Maven installed on your machine.
+Clone the repository to your local machine.
+Navigate to the root directory of the project via terminal or command prompt.
+Run the command mvn spring-boot:run. This will start the application.
+Once the application is running, you can access it at http://localhost:8080.
+Example Endpoint Usage
+Using the developed endpoint to fetch country data:
+
+Search by Country Name:
+GET http://localhost:8080/countries?query=UK
+
+Population Filter (Less than 100 million):
+GET http://localhost:8080/countries?maxPopulationInMillions=100
+
+Sort Countries (Descending):
+GET http://localhost:8080/countries?order=descend
+
+Pagination (Retrieve 2 countries):
+GET http://localhost:8080/countries?limit=2
+
+Retrieve All Countries:
+GET http://localhost:8080/countries
+
+Search for Countries starting with 'A':
+GET http://localhost:8080/countries?query=A
+
+Sort Countries (Default Ascending Order):
+GET http://localhost:8080/countries?query=Germany
+
+Filter by Population and Sort (Descending):
+GET http://localhost:8080/countries?maxPopulationInMillions=200&order=descend
+
+Search, Sort (Ascending) & Pagination:
+GET http://localhost:8080/countries?query=India&order=ascend&limit=5
+
+Combine Search, Population Filter, Sort, and Pagination:
+GET http://localhost:8080/countries?query=UK&maxPopulationInMillions=70&order=descend&limit=3
+
+Note: These examples are derived from the provided code to showcase the endpoint's versatility. Ensure you review the actual implemented functionalities to guarantee the validity of these examples.
